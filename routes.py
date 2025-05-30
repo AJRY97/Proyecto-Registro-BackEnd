@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify
 from models import db, User
 from werkzeug.security import generate_password_hash
-from flask_jwt_extended import create_access_token
+from werkzeug.security import check_password_hash
+
 
 api = Blueprint("api", __name__)
 
+"""Registrar usuario"""
 @api.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -20,7 +22,46 @@ def register():
     db.session.commit()
     return jsonify({"msg": "Usuario registrado con éxito"}), 201
 
+"""Obtener usuarios"""
 @api.route("/users", methods=["GET"])
 def get_users():
     users = User.query.all()
-    return jsonify([{"name": u.name, "email": u.email} for u in users])
+    return jsonify([u.serialize() for u in users]), 200
+
+
+"""Actualizar usuario"""
+@api.route("/users/<int:id>", methods=["PUT"])
+def update_user(id):
+    data = request.get_json()
+    user = User.query.get(id)
+
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    if not data.get("password"):
+        return jsonify({"error": "La contraseña es requerida"}), 400
+    data = request.get_json()
+    print("Contraseña recibida:", data.get("password"))
+    print("Contraseña guardada:", user.password)
+
+    if not check_password_hash(user.password, data["password"]):
+        return jsonify({"error": "Contraseña incorrecta"}), 401
+
+
+    user.name = data.get("name", user.name)
+    user.email = data.get("email", user.email)
+
+    db.session.commit()
+    return jsonify(user.serialize()), 200
+
+
+"""Eliminar usuario"""
+@api.route('/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    user = User.query.get(id)
+    if not user:
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"msg": "Usuario eliminado correctamente"}), 200
